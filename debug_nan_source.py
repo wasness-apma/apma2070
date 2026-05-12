@@ -17,7 +17,7 @@ import json
 # Load model
 MODEL_PATH = (
     Path(__file__).parent 
-    / "results/train_pinn/ic_sine/alpha_0p5/nu_0p1/epochs_20000/model.weights.h5"
+    / "results/train_pinn/ic_sine/alpha_0p25/nu_0p1/epochs_20000/model.weights.h5"
 )
 REPORT_PATH = MODEL_PATH.parent / "report.json"
 
