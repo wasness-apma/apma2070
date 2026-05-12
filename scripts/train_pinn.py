@@ -114,6 +114,8 @@ def parse_args() -> argparse.Namespace:
 
     # Hardware
     p.add_argument("--device", default="/GPU:0", help="TF device string: /GPU:0 or /CPU:0")
+    p.add_argument("--dtype", default="float32", choices=["float32", "float64"],
+                   help="floating-point precision (float32 is ~32x faster on T4 GPU)")
 
     # Output
     p.add_argument("--out-dir", type=Path, default=None, help="output directory (auto-generated from params if not specified)")
@@ -151,7 +153,7 @@ def validate(args: argparse.Namespace) -> None:
 # θ_0 interpolator — evaluated at arbitrary random IC points each step
 # ---------------------------------------------------------------------------
 
-def build_theta0_fn(ic, grid: FourierGrid, nu: float, alpha: float):
+def build_theta0_fn(ic, grid: FourierGrid, nu: float, alpha: float, fdtype=tf.float32):
     """Return a callable  x_ic (B, 1) → theta_0 (B,)  usable inside tf.function.
 
     For ICs with a closed-form theta_0 we call it directly (all TF ops).
@@ -159,18 +161,20 @@ def build_theta0_fn(ic, grid: FourierGrid, nu: float, alpha: float):
     trig interpolation to evaluate at arbitrary random points.
     """
     if ic.theta_0 is not None:
-        # Closed-form: traces cleanly into any tf.function
+        # Cast input to float64 for the IC formula, cast result back to fdtype.
         def theta0_fn(x_ic: tf.Tensor) -> tf.Tensor:
-            return ic.theta_0(x_ic[:, 0], nu, alpha)
+            result = ic.theta_0(tf.cast(x_ic[:, 0], tf.float64), nu, alpha)
+            return tf.cast(result, fdtype)
     else:
-        # Spectral: compute once on the grid, freeze as a constant
+        # Spectral: compute in float64 (trig_interp requires it), cast output.
         u0_grid = ic.u_0(grid.x_tf)
         theta0_grid = u_to_theta_0(u0_grid, alpha, nu, grid)
         theta0_const = tf.constant(theta0_grid.numpy(), dtype=tf.float64)
 
         def theta0_fn(x_ic: tf.Tensor) -> tf.Tensor:
             # trig_interp: (1, N) × (B,) → (1, B), take row 0
-            return trig_interp(theta0_const[None, :], x_ic[:, 0], grid)[0]
+            result = trig_interp(theta0_const[None, :], tf.cast(x_ic[:, 0], tf.float64), grid)[0]
+            return tf.cast(result, fdtype)
 
     return theta0_fn
 
@@ -190,25 +194,26 @@ def make_train_step(
     n_ic: int,
     pde_weight: float,
     ic_weight: float,
+    fdtype=tf.float32,
 ):
     """Factory: returns a @tf.function compiled training step.
 
     All random sampling happens inside the graph — no Python execution
     inside the hot loop, no CPU/GPU sync per step.
     """
-    L_c = tf.constant(grid.L, dtype=tf.float64)
-    t_max_c = tf.constant(t_max, dtype=tf.float64)
-    nu_c = tf.constant(nu, dtype=tf.float64)
-    pde_w = tf.constant(pde_weight, dtype=tf.float64)
-    ic_w = tf.constant(ic_weight, dtype=tf.float64)
-    zero64 = tf.constant(0.0, dtype=tf.float64)
+    L_c = tf.constant(grid.L, dtype=fdtype)
+    t_max_c = tf.constant(t_max, dtype=fdtype)
+    nu_c = tf.constant(nu, dtype=fdtype)
+    pde_w = tf.constant(pde_weight, dtype=fdtype)
+    ic_w = tf.constant(ic_weight, dtype=fdtype)
+    zero = tf.constant(0.0, dtype=fdtype)
 
     @tf.function
     def step():
         # ── sample inside graph (no CPU round-trip) ──────────────────────
-        x_col = tf.random.uniform((n_col, 1), -L_c, L_c, dtype=tf.float64)
-        t_col = tf.random.uniform((n_col, 1), zero64, t_max_c, dtype=tf.float64)
-        x_ic = tf.random.uniform((n_ic, 1), -L_c, L_c, dtype=tf.float64)
+        x_col = tf.random.uniform((n_col, 1), -L_c, L_c, dtype=fdtype)
+        t_col = tf.random.uniform((n_col, 1), zero, t_max_c, dtype=fdtype)
+        x_ic = tf.random.uniform((n_ic, 1), -L_c, L_c, dtype=fdtype)
 
         # ── forward + PDE residual + IC penalty ─────────────────────────
         with tf.GradientTape() as model_tape:
@@ -230,7 +235,7 @@ def make_train_step(
             residual = theta_t - nu_c * theta_xx
             pde_loss = tf.reduce_mean(tf.square(residual))
 
-            t_zero = tf.zeros((n_ic, 1), dtype=tf.float64)
+            t_zero = tf.zeros((n_ic, 1), dtype=fdtype)
             theta_ic_pred = model(tf.concat([x_ic, t_zero], axis=-1))[:, 0]
             theta_ic_true = theta0_fn(x_ic)
             ic_loss = tf.reduce_mean(tf.square(theta_ic_pred - theta_ic_true))
@@ -408,6 +413,8 @@ def _main(args) -> None:
         np.random.seed(args.seed)
 
     device = configure_gpu(prefer_gpu=args.device != "/CPU:0", verbose=True)
+    fdtype = tf.float32 if args.dtype == "float32" else tf.float64
+    print(f"Using dtype: {args.dtype}")
 
     grid = FourierGrid.make(N=args.N, L=args.L)
     ic = initial_conditions.get(args.ic)
@@ -422,10 +429,12 @@ def _main(args) -> None:
     model = HeatPINN(
         hidden_layers=tuple(args.hidden_layers),
         activation=args.activation,
+        dtype=args.dtype,
+        L=args.L,
     )
     # Warm-up call to build weights before any tf.function tracing
     with tf.device(device):
-        _ = model(tf.zeros((1, 2), dtype=tf.float64))
+        _ = model(tf.zeros((1, 2), dtype=fdtype))
     print(f"Model parameters: {model.count_params():,}")
 
     # ── optimizer + LR schedule ──────────────────────────────────────────
@@ -440,7 +449,7 @@ def _main(args) -> None:
         optimizer = tf.keras.optimizers.Adam(learning_rate=args.lr)
 
     # ── theta_0 interpolator ─────────────────────────────────────────────
-    theta0_fn = build_theta0_fn(ic, grid, args.nu, args.alpha)
+    theta0_fn = build_theta0_fn(ic, grid, args.nu, args.alpha, fdtype=fdtype)
 
     # ── compile training step ────────────────────────────────────────────
     with tf.device(device):
@@ -455,6 +464,7 @@ def _main(args) -> None:
             n_ic=args.n_initial,
             pde_weight=args.pde_weight,
             ic_weight=args.ic_weight,
+            fdtype=fdtype,
         )
         # Trace once so the first epoch doesn't include compile time
         print("Compiling tf.function (one-time) …")

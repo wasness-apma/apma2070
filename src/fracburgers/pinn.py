@@ -20,6 +20,7 @@ which makes error attribution clean for the comparison study.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Callable
 
@@ -43,13 +44,15 @@ class HeatPINN(tf.keras.Model):
     """
 
     def __init__(self, hidden_layers: tuple[int, ...] = (64, 64, 64, 64),
-                 activation: str = "tanh", dtype: str = "float64", **kwargs):
+                 activation: str = "tanh", dtype: str = "float32",
+                 L: float = math.pi, **kwargs):
         super().__init__(dtype=dtype, **kwargs)
         if len(hidden_layers) == 0:
             raise ValueError("hidden_layers must contain at least one width")
         self.hidden_layers = tuple(hidden_layers)
         self.activation = activation
-        # +2 layers: explicit input projection (2 → first width) and output (→ 1)
+        self._L = float(L)
+        # Input is (sin(x/L), cos(x/L), t) — 3 features
         self._input_layer = tf.keras.layers.Dense(
             self.hidden_layers[0], activation=self.activation, dtype=dtype
         )
@@ -66,7 +69,10 @@ class HeatPINN(tf.keras.Model):
         Returns shape ``(B, 1)``.
         """
         x, t = inputs[:, 0:1], inputs[:, 1:2]  # each (B, 1)
-        z = self._input_layer(tf.concat([x, t], axis=-1))
+        scale = tf.cast(1.0 / self._L, dtype=inputs.dtype)
+        sin_x = tf.sin(scale * x)
+        cos_x = tf.cos(scale * x)
+        z = self._input_layer(tf.concat([sin_x, cos_x, t], axis=-1))
         for layer in self._hidden:
             z = layer(z)
         return self._output_layer(z)
@@ -78,6 +84,7 @@ class HeatPINN(tf.keras.Model):
                 "hidden_layers": list(self.hidden_layers),
                 "activation": self.activation,
                 "dtype": self.dtype,
+                "L": self._L,
             }
         )
         return config
@@ -86,8 +93,9 @@ class HeatPINN(tf.keras.Model):
     def from_config(cls, config: dict):
         hidden_layers = tuple(config.pop("hidden_layers", [64, 64, 64, 64]))
         activation = config.pop("activation", "tanh")
-        dtype = config.pop("dtype", "float64")
-        return cls(hidden_layers=hidden_layers, activation=activation, dtype=dtype, **config)
+        dtype = config.pop("dtype", "float32")
+        L = config.pop("L", math.pi)
+        return cls(hidden_layers=hidden_layers, activation=activation, dtype=dtype, L=L, **config)
 
 
 @dataclass
