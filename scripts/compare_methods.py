@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import tempfile
 from pathlib import Path
@@ -28,6 +29,13 @@ from fracburgers.spectral import SpectralSolver
 from fracburgers.viz import animate_comparison, save_solution_comparison
 
 
+def _csv_ints(text: str) -> tuple[int, ...]:
+    values = tuple(int(tok.strip()) for tok in text.split(",") if tok.strip())
+    if not values:
+        raise argparse.ArgumentTypeError("expected at least one integer")
+    return values
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ic", choices=sorted(initial_conditions.REGISTRY), default="gaussian")
@@ -39,6 +47,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--N-ref", type=int, default=2048)
     parser.add_argument("--L", type=float, default=20.0)
     parser.add_argument("--pinn-checkpoint", type=Path, default=Path("checkpoints/heat_pinn.keras"))
+    parser.add_argument(
+        "--hidden-layers",
+        type=_csv_ints,
+        default=None,
+        metavar="W1,W2,...",
+        help="PINN hidden widths for weights-only checkpoints (auto-read from report.json when omitted)",
+    )
+    parser.add_argument(
+        "--activation",
+        type=str,
+        default=None,
+        help="PINN activation for weights-only checkpoints (auto-read from report.json when omitted)",
+    )
     parser.add_argument("--out-dir", type=Path, default=None, help="output directory (auto-generated from params if not specified)")
     parser.add_argument("--movie", type=Path, default=None)
     parser.add_argument("--movie-fps", type=int, default=12)
@@ -61,19 +82,60 @@ def validate_args(args: argparse.Namespace) -> None:
             raise SystemExit(message)
 
 
-def load_pinn_model(path: Path) -> HeatPINN:
+def _read_arch_from_report(path: Path) -> tuple[tuple[int, ...] | None, str | None]:
+    report_path = path.with_name("report.json")
+    if not report_path.exists():
+        return None, None
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None, None
+
+    config = report.get("config", {})
+    hidden_layers = config.get("hidden_layers")
+    activation = config.get("activation")
+    if isinstance(hidden_layers, list) and all(isinstance(w, int) for w in hidden_layers):
+        return tuple(hidden_layers), activation if isinstance(activation, str) else None
+    return None, None
+
+
+def load_pinn_model(
+    path: Path,
+    *,
+    hidden_layers: tuple[int, ...] | None = None,
+    activation: str | None = None,
+) -> HeatPINN:
     if not path.exists():
         raise FileNotFoundError(
             f"PINN checkpoint not found at {path}. "
             "Run scripts/train_pinn.py first or pass --pinn-checkpoint."
         )
-    model = tf.keras.models.load_model(
-        path,
-        custom_objects={"HeatPINN": HeatPINN},
-        compile=False,
-    )
-    if not isinstance(model, HeatPINN):
-        raise TypeError(f"Loaded {type(model).__name__}, expected HeatPINN.")
+
+    # Full serialized model path (.keras / legacy full .h5 model)
+    if path.suffix == ".keras" or (path.suffix == ".h5" and not path.name.endswith(".weights.h5")):
+        model = tf.keras.models.load_model(
+            path,
+            custom_objects={"HeatPINN": HeatPINN},
+            compile=False,
+        )
+        if not isinstance(model, HeatPINN):
+            raise TypeError(f"Loaded {type(model).__name__}, expected HeatPINN.")
+        return model
+
+    # Weights-only path (.weights.h5): reconstruct architecture first.
+    report_layers, report_activation = _read_arch_from_report(path)
+    hidden_layers = hidden_layers or report_layers
+    activation = activation or report_activation or "tanh"
+    if hidden_layers is None:
+        raise ValueError(
+            "Weights checkpoint detected but model architecture is unknown. "
+            "Either place report.json next to the weights file (from train_pinn.py), "
+            "or pass --hidden-layers and optionally --activation."
+        )
+
+    model = HeatPINN(hidden_layers=hidden_layers, activation=activation)
+    _ = model(tf.zeros((1, 2), dtype=tf.float64))
+    model.load_weights(str(path))
     return model
 
 
@@ -102,7 +164,16 @@ def main() -> None:
     grid_ref = FourierGrid.make(N=args.N_ref, L=args.L)
     times = np.linspace(0.0, args.t_max, num=args.n_times, dtype=np.float64)
 
-    sol_pinn = to_solution(load_pinn_model(args.pinn_checkpoint), grid=grid, nu=args.nu, alpha=args.alpha)
+    sol_pinn = to_solution(
+        load_pinn_model(
+            args.pinn_checkpoint,
+            hidden_layers=args.hidden_layers,
+            activation=args.activation,
+        ),
+        grid=grid,
+        nu=args.nu,
+        alpha=args.alpha,
+    )
     sol_ref = SpectralSolver(grid=grid_ref, nu=args.nu, alpha=args.alpha).solve(ic)
 
     title = (
