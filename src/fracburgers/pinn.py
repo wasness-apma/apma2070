@@ -69,7 +69,7 @@ class HeatPINN(tf.keras.Model):
         Returns shape ``(B, 1)``.
         """
         x, t = inputs[:, 0:1], inputs[:, 1:2]  # each (B, 1)
-        scale = tf.cast(1.0 / self._L, dtype=inputs.dtype)
+        scale = tf.cast(math.pi / self._L, dtype=inputs.dtype)
         sin_x = tf.sin(scale * x)
         cos_x = tf.cos(scale * x)
         z = self._input_layer(tf.concat([sin_x, cos_x, t], axis=-1))
