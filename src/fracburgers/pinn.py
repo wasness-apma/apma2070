@@ -57,7 +57,8 @@ class HeatPINN(tf.keras.Model):
             tf.keras.layers.Dense(width, activation=self.activation, dtype=dtype)
             for width in self.hidden_layers[1:]
         ]
-        self._output_layer = tf.keras.layers.Dense(1, dtype=dtype)
+        # Output layer with softplus to ensure θ > 0 (required for Cole–Hopf log(θ))
+        self._output_layer = tf.keras.layers.Dense(1, activation="softplus", dtype=dtype)
 
     def call(self, inputs: tf.Tensor) -> tf.Tensor:
         """Forward pass: ``inputs`` shape ``(B, 2)`` with ``[:, 0]=x, [:, 1]=t``.

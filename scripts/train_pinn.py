@@ -305,6 +305,7 @@ def save_comparison_plot(
     title: str = "",
 ) -> Path:
     """Rows = time snapshots, cols = (u overlay, pointwise error)."""
+    print(f"[DEBUG] save_comparison_plot: pinn_sol type={type(pinn_sol)}, n_times={len(snap_times)}")
     n_times = len(snap_times)
     ref_color = "#2980C7"
     err_color = "#5A0306"
@@ -330,6 +331,12 @@ def save_comparison_plot(
         u_pinn = pinn_sol(x_tf, t_tf).numpy()
         u_spec = spec_sol(x_tf, t_tf).numpy()
         err = u_pinn - u_spec
+        
+        # Debug: check u_pinn values
+        n_nan = np.sum(np.isnan(u_pinn))
+        n_inf = np.sum(np.isinf(u_pinn))
+        print(f"  t={t:g}: u_pinn shape={u_pinn.shape}, nan={n_nan}, inf={n_inf}, "
+              f"min={np.nanmin(u_pinn):g}, max={np.nanmax(u_pinn):g}")
 
         ax_u, ax_e = axes[ti, 0], axes[ti, 1]
         ax_u.set_facecolor("#FCFCFC")
@@ -470,7 +477,21 @@ def _main(args) -> None:
     # ── spectral reference ────────────────────────────────────────────────
     print("Running spectral solver for comparison …")
     spec_sol = SpectralSolver(grid=grid, nu=args.nu, alpha=args.alpha).solve(ic)
+    print(f"[DEBUG] spec_sol type={type(spec_sol)}")
+    
+    print(f"[DEBUG] Creating PINN solution wrapper with to_solution()…")
     pinn_sol = to_solution(model, grid, args.nu, args.alpha)
+    print(f"[DEBUG] pinn_sol type={type(pinn_sol)}")
+    
+    # Quick test: evaluate PINN at a single point
+    try:
+        x_test = tf.constant([0.0], dtype=tf.float64)
+        t_test = tf.constant(0.0, dtype=tf.float64)
+        u_test = pinn_sol(x_test, t_test).numpy()
+        print(f"[DEBUG] pinn_sol(x=0, t=0) = {u_test} (shape={u_test.shape})")
+    except Exception as e:
+        print(f"[ERROR] pinn_sol evaluation failed: {e}")
+
 
     label = (
         f"PINN vs spectral  —  ic={args.ic}, α={args.alpha:g}, "
