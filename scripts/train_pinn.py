@@ -54,7 +54,7 @@ class _Tee:
     def flush(self):
         for fd in self._fds:
             fd.flush()
-from fracburgers.cole_hopf import u_to_theta_0
+from fracburgers.cole_hopf import u_to_log_theta_0
 from fracburgers.grid import FourierGrid
 from fracburgers.interpolation import trig_interp
 from fracburgers.pinn import HeatPINN, configure_gpu, to_solution
@@ -152,33 +152,33 @@ def validate(args: argparse.Namespace) -> None:
 
 
 # ---------------------------------------------------------------------------
-# θ_0 interpolator — evaluated at arbitrary random IC points each step
+# log θ_0 interpolator — evaluated at arbitrary random IC points each step
 # ---------------------------------------------------------------------------
 
-def build_theta0_fn(ic, grid: FourierGrid, nu: float, alpha: float, fdtype=tf.float32):
-    """Return a callable  x_ic (B, 1) → theta_0 (B,)  usable inside tf.function.
+def build_log_theta0_fn(ic, grid: FourierGrid, nu: float, alpha: float, fdtype=tf.float32):
+    """Return a callable  x_ic (B, 1) → log θ_0 (B,)  usable inside tf.function.
 
-    For ICs with a closed-form theta_0 we call it directly (all TF ops).
-    Otherwise we pre-compute theta_0 on the Fourier grid once and use
-    trig interpolation to evaluate at arbitrary random points.
+    Prefers a closed-form ``ic.log_theta_0`` when available; otherwise
+    pre-computes log θ_0 spectrally from u_0 (no exp/log roundtrip) and
+    trig-interpolates to arbitrary points.
     """
-    if ic.theta_0 is not None:
+    if ic.log_theta_0 is not None:
         # Cast input to float64 for the IC formula, cast result back to fdtype.
-        def theta0_fn(x_ic: tf.Tensor) -> tf.Tensor:
-            result = ic.theta_0(tf.cast(x_ic[:, 0], tf.float64), nu, alpha)
+        def log_theta0_fn(x_ic: tf.Tensor) -> tf.Tensor:
+            result = ic.log_theta_0(tf.cast(x_ic[:, 0], tf.float64), nu, alpha)
             return tf.cast(result, fdtype)
     else:
         # Spectral: compute in float64 (trig_interp requires it), cast output.
         u0_grid = ic.u_0(grid.x_tf)
-        theta0_grid = u_to_theta_0(u0_grid, alpha, nu, grid)
-        theta0_const = tf.constant(theta0_grid.numpy(), dtype=tf.float64)
+        log_theta0_grid = u_to_log_theta_0(u0_grid, alpha, nu, grid)
+        log_theta0_const = tf.constant(log_theta0_grid.numpy(), dtype=tf.float64)
 
-        def theta0_fn(x_ic: tf.Tensor) -> tf.Tensor:
+        def log_theta0_fn(x_ic: tf.Tensor) -> tf.Tensor:
             # trig_interp: (1, N) × (B,) → (1, B), take row 0
-            result = trig_interp(theta0_const[None, :], tf.cast(x_ic[:, 0], tf.float64), grid)[0]
+            result = trig_interp(log_theta0_const[None, :], tf.cast(x_ic[:, 0], tf.float64), grid)[0]
             return tf.cast(result, fdtype)
 
-    return theta0_fn
+    return log_theta0_fn
 
 
 # ---------------------------------------------------------------------------
@@ -188,7 +188,7 @@ def build_theta0_fn(ic, grid: FourierGrid, nu: float, alpha: float, fdtype=tf.fl
 def make_train_step(
     model: HeatPINN,
     optimizer: tf.keras.optimizers.Optimizer,
-    theta0_fn,
+    log_theta0_fn,
     grid: FourierGrid,
     nu: float,
     t_max: float,
@@ -262,14 +262,12 @@ def make_train_step(
             pde_loss = tf.reduce_mean(tf.square(residual))
 
             t_zero = tf.zeros((n_ic, 1), dtype=fdtype)
-            theta_ic_pred = model(tf.concat([x_ic, t_zero], axis=-1))[:, 0]
-            theta_ic_true = theta0_fn(x_ic)
-            # Relative MSE: ((θ_pred − θ_true) / θ_true)².  Weights regions
-            # of small θ equally with large-θ regions, instead of letting the
-            # large-θ part of the IC dominate the loss.
-            ic_loss = tf.reduce_mean(
-                tf.square((theta_ic_pred - theta_ic_true) / theta_ic_true)
-            )
+            # Log-space IC MSE: compare log θ directly via the linear
+            # pre-activation against the algebraic log θ_0 — no exp, no log,
+            # naturally relative across the wide dynamic range of θ_0.
+            log_theta_ic_pred = model.log_theta(tf.concat([x_ic, t_zero], axis=-1))[:, 0]
+            log_theta_ic_true = log_theta0_fn(x_ic)
+            ic_loss = tf.reduce_mean(tf.square(log_theta_ic_pred - log_theta_ic_true))
 
             total = pde_w * pde_loss + ic_w * ic_loss
 
@@ -568,15 +566,16 @@ def _main(args) -> None:
     else:
         optimizer = tf.keras.optimizers.Adam(learning_rate=args.lr)
 
-    # ── theta_0 interpolator ─────────────────────────────────────────────
-    theta0_fn = build_theta0_fn(ic, grid, args.nu, args.alpha, fdtype=fdtype)
+    # ── log θ_0 interpolator (canonical) + θ_0 derived for heat plot ─────
+    log_theta0_fn = build_log_theta0_fn(ic, grid, args.nu, args.alpha, fdtype=fdtype)
+    theta0_fn = lambda x: tf.exp(log_theta0_fn(x))  # derived, used only for heat plot
 
     # ── compile training step ────────────────────────────────────────────
     with tf.device(device):
         train_step = make_train_step(
             model=model,
             optimizer=optimizer,
-            theta0_fn=theta0_fn,
+            log_theta0_fn=log_theta0_fn,
             grid=grid,
             nu=args.nu,
             t_max=args.t_max,
