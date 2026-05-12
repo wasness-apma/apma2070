@@ -111,6 +111,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--ic-weight", type=float, default=100.0)
     p.add_argument("--log-every", type=int, default=200)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--uniform-grid", action="store_true",
+                   help="use a fixed uniform meshgrid for collocation instead of random sampling")
 
     # Hardware
     p.add_argument("--device", default="/GPU:0", help="TF device string: /GPU:0 or /CPU:0")
@@ -195,25 +197,49 @@ def make_train_step(
     pde_weight: float,
     ic_weight: float,
     fdtype=tf.float32,
+    uniform_grid: bool = False,
 ):
     """Factory: returns a @tf.function compiled training step.
 
-    All random sampling happens inside the graph — no Python execution
-    inside the hot loop, no CPU/GPU sync per step.
+    When uniform_grid=False (default) collocation points are re-sampled
+    randomly each step.  When True a fixed n_x × n_t meshgrid is used —
+    same points every epoch, which can improve stability at the cost of
+    some stochastic coverage.
     """
-    L_c = tf.constant(grid.L, dtype=fdtype)
-    t_max_c = tf.constant(t_max, dtype=fdtype)
     nu_c = tf.constant(nu, dtype=fdtype)
     pde_w = tf.constant(pde_weight, dtype=fdtype)
     ic_w = tf.constant(ic_weight, dtype=fdtype)
-    zero = tf.constant(0.0, dtype=fdtype)
+
+    if uniform_grid:
+        np_dtype = np.float32 if fdtype == tf.float32 else np.float64
+        n_x = max(1, int(round(n_col ** 0.5)))
+        n_t = max(1, (n_col + n_x - 1) // n_x)
+        x_vals = np.linspace(-grid.L, grid.L, n_x, endpoint=False, dtype=np_dtype)
+        t_vals = np.linspace(0.0, t_max, n_t, endpoint=False, dtype=np_dtype)
+        XX, TT = np.meshgrid(x_vals, t_vals)
+        x_col_c = tf.constant(XX.reshape(-1, 1), dtype=fdtype)
+        t_col_c = tf.constant(TT.reshape(-1, 1), dtype=fdtype)
+        x_ic_c = tf.constant(
+            np.linspace(-grid.L, grid.L, n_ic, dtype=np_dtype).reshape(-1, 1),
+            dtype=fdtype,
+        )
+        print(f"Uniform grid: {n_x} × {n_t} = {n_x * n_t} collocation points, "
+              f"{n_ic} IC points")
+    else:
+        L_c = tf.constant(grid.L, dtype=fdtype)
+        t_max_c = tf.constant(t_max, dtype=fdtype)
+        zero = tf.constant(0.0, dtype=fdtype)
 
     @tf.function
     def step():
-        # ── sample inside graph (no CPU round-trip) ──────────────────────
-        x_col = tf.random.uniform((n_col, 1), -L_c, L_c, dtype=fdtype)
-        t_col = tf.random.uniform((n_col, 1), zero, t_max_c, dtype=fdtype)
-        x_ic = tf.random.uniform((n_ic, 1), -L_c, L_c, dtype=fdtype)
+        if uniform_grid:
+            x_col = x_col_c
+            t_col = t_col_c
+            x_ic = x_ic_c
+        else:
+            x_col = tf.random.uniform((n_col, 1), -L_c, L_c, dtype=fdtype)
+            t_col = tf.random.uniform((n_col, 1), zero, t_max_c, dtype=fdtype)
+            x_ic = tf.random.uniform((n_ic, 1), -L_c, L_c, dtype=fdtype)
 
         # ── forward + PDE residual + IC penalty ─────────────────────────
         with tf.GradientTape() as model_tape:
@@ -277,6 +303,24 @@ def run_training(
             )
 
     return history
+
+
+# ---------------------------------------------------------------------------
+# Heat-equation reference θ
+# ---------------------------------------------------------------------------
+
+def heat_theta_on_grid(theta0_fn, grid: FourierGrid, nu: float, t: float, fdtype) -> np.ndarray:
+    """θ(x, t) from heat equation θ_t = ν θ_xx via spectral evolution.
+
+    Evaluates θ_0 on the Fourier grid, advances with exp(-ν k² t) in
+    Fourier space, and returns the real-space values as float64.
+    """
+    x_flat = tf.constant(grid.x.reshape(-1, 1), dtype=fdtype)
+    theta0 = theta0_fn(x_flat).numpy().flatten().astype(np.float64)
+    theta0_hat = np.fft.rfft(theta0)
+    k = np.fft.rfftfreq(grid.N, d=grid.dx) * (2.0 * np.pi)
+    theta_hat_t = theta0_hat * np.exp(-nu * k ** 2 * t)
+    return np.fft.irfft(theta_hat_t, n=grid.N)
 
 
 # ---------------------------------------------------------------------------
@@ -465,6 +509,7 @@ def _main(args) -> None:
             pde_weight=args.pde_weight,
             ic_weight=args.ic_weight,
             fdtype=fdtype,
+            uniform_grid=args.uniform_grid,
         )
         # Trace once so the first epoch doesn't include compile time
         print("Compiling tf.function (one-time) …")
@@ -540,6 +585,7 @@ def _main(args) -> None:
             "pde_weight": args.pde_weight,
             "ic_weight": args.ic_weight,
             "seed": args.seed,
+            "uniform_grid": args.uniform_grid,
             "device": device,
         },
         "final_losses": {"total": final_total, "pde": final_pde, "ic": final_ic},
