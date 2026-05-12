@@ -23,6 +23,7 @@ matplotlib.use("Agg")
 from fracburgers import initial_conditions
 from fracburgers.grid import FourierGrid
 from fracburgers.pinn import HeatPINN, to_solution
+from fracburgers.result_naming import get_output_dir
 from fracburgers.spectral import SpectralSolver
 from fracburgers.viz import animate_comparison, save_solution_comparison
 
@@ -38,7 +39,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--N-ref", type=int, default=2048)
     parser.add_argument("--L", type=float, default=20.0)
     parser.add_argument("--pinn-checkpoint", type=Path, default=Path("checkpoints/heat_pinn.keras"))
-    parser.add_argument("--out-dir", type=Path, default=Path("results"))
+    parser.add_argument("--out-dir", type=Path, default=None, help="output directory (auto-generated from params if not specified)")
     parser.add_argument("--movie", type=Path, default=None)
     parser.add_argument("--movie-fps", type=int, default=12)
     return parser.parse_args()
@@ -79,6 +80,22 @@ def load_pinn_model(path: Path) -> HeatPINN:
 def main() -> None:
     args = parse_args()
     validate_args(args)
+
+    # Auto-generate output directory if not specified
+    if args.out_dir is None:
+        args.out_dir = get_output_dir(
+            Path("results"),
+            "compare",
+            {
+                "ic": args.ic,
+                "alpha": args.alpha,
+                "nu": args.nu,
+                "N": args.N,
+                "__tags": ["ic", "alpha", "nu", "N"],
+            },
+        )
+    else:
+        args.out_dir.mkdir(parents=True, exist_ok=True)
 
     ic = initial_conditions.get(args.ic)
     grid = FourierGrid.make(N=args.N, L=args.L)

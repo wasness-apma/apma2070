@@ -28,6 +28,7 @@ import tensorflow as tf
 
 from fracburgers.grid import FourierGrid
 from fracburgers.references import CosineModeReference
+from fracburgers.result_naming import get_output_dir
 from fracburgers.viz import animate_solution
 
 
@@ -76,7 +77,7 @@ def parse_args() -> argparse.Namespace:
         help="end time for movie frames (defaults to max of --times)",
     )
     parser.add_argument("--movie-frames", type=int, default=120)
-    parser.add_argument("--out-dir", type=Path, default=Path("results"))
+    parser.add_argument("--out-dir", type=Path, default=None, help="output directory (auto-generated from params if not specified)")
     return parser.parse_args()
 
 
@@ -103,7 +104,22 @@ def validate(args: argparse.Namespace) -> None:
 def main() -> None:
     args = parse_args()
     validate(args)
-    args.out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Auto-generate output directory if not specified
+    if args.out_dir is None:
+        args.out_dir = get_output_dir(
+            Path("results"),
+            "plot_reference",
+            {
+                "a": args.a,
+                "b": args.b,
+                "k": args.k,
+                "nu": args.nu,
+                "__tags": ["a", "b", "k", "nu"],
+            },
+        )
+    else:
+        args.out_dir.mkdir(parents=True, exist_ok=True)
 
     alphas = sorted(args.alpha_list)
     times = np.asarray(sorted(args.times), dtype=np.float64)

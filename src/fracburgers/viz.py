@@ -696,7 +696,11 @@ def save_solution_comparison(
         "config": config or {},
     }
 
+    ref_color = "#2980C7"
+    err_color = "#5A0306"
+
     fig, axes = plt.subplots(2, 2, figsize=(12.0, 8.0), constrained_layout=True)
+    fig.patch.set_facecolor("white")
     fig.suptitle(title)
 
     plot_spacetime(sol_ref, times, ax=axes[0, 0])
@@ -705,19 +709,25 @@ def save_solution_comparison(
     axes[0, 1].set_title(test_label)
 
     snapshot_t = float(times[-1])
-    plot_snapshot(sol_ref, snapshot_t, ax=axes[1, 0], color="black", label=ref_label)
-    plot_snapshot(sol_test, snapshot_t, ax=axes[1, 0], color="tab:orange", linestyle="--", label=test_label)
-    axes[1, 0].set_title(f"Final snapshot t={snapshot_t:g}")
-    axes[1, 0].legend()
+    ax_snap = axes[1, 0]
+    ax_snap.set_facecolor("#FCFCFC")
+    plot_snapshot(sol_ref, snapshot_t, ax=ax_snap, color=ref_color, linewidth=1.8, alpha=0.5, label=ref_label)
+    plot_snapshot(sol_test, snapshot_t, ax=ax_snap, color=err_color, linewidth=1.2, linestyle="--", alpha=0.95, label=test_label)
+    ax_snap.set_title(f"Final snapshot t={snapshot_t:g}")
+    ax_snap.legend(framealpha=0.92, facecolor="white")
+    ax_snap.grid(True, color="#B0B0B0", alpha=0.28)
 
-    axes[1, 1].semilogy(times, np.maximum(l2_errors, np.finfo(float).tiny), marker="o", label="L2")
-    axes[1, 1].semilogy(times, np.maximum(linf_errors, np.finfo(float).tiny), marker="s", label="Linf")
-    axes[1, 1].set_xlabel("t")
-    axes[1, 1].set_ylabel("error")
-    axes[1, 1].set_title("Error against reference")
-    axes[1, 1].legend()
+    ax_err = axes[1, 1]
+    ax_err.set_facecolor("#FCFCFC")
+    ax_err.semilogy(times, np.maximum(l2_errors, np.finfo(float).tiny), color=ref_color, marker="o", label="L2")
+    ax_err.semilogy(times, np.maximum(linf_errors, np.finfo(float).tiny), color=err_color, marker="s", label="Linf")
+    ax_err.set_xlabel("t")
+    ax_err.set_ylabel("error")
+    ax_err.set_title("Error against reference")
+    ax_err.legend(framealpha=0.92, facecolor="white")
+    ax_err.grid(True, which="both", color="#B0B0B0", alpha=0.28)
 
-    fig.savefig(fig_path, dpi=160)
+    fig.savefig(fig_path, dpi=160, facecolor="white", edgecolor="white")
     plt.close(fig)
     metrics_path.write_text(json.dumps(metrics, indent=2, default=str), encoding="utf-8")
     return fig_path, metrics_path, metrics

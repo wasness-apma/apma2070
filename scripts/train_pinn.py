@@ -44,6 +44,7 @@ from fracburgers.cole_hopf import u_to_theta_0
 from fracburgers.grid import FourierGrid
 from fracburgers.interpolation import trig_interp
 from fracburgers.pinn import HeatPINN, configure_gpu, to_solution
+from fracburgers.result_naming import get_output_dir
 from fracburgers.spectral import SpectralSolver
 
 
@@ -101,7 +102,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--device", default="/GPU:0", help="TF device string: /GPU:0 or /CPU:0")
 
     # Output
-    p.add_argument("--out-dir", type=Path, default=Path("results/pinn"))
+    p.add_argument("--out-dir", type=Path, default=None, help="output directory (auto-generated from params if not specified)")
     p.add_argument("--out-model", type=Path, default=None, help="path to save model weights (default: <out-dir>/model.weights.h5)")
     p.add_argument(
         "--snap-times",
@@ -291,8 +292,8 @@ def save_comparison_plot(
 ) -> Path:
     """Rows = time snapshots, cols = (u overlay, pointwise error)."""
     n_times = len(snap_times)
-    cmap = plt.get_cmap("plasma")
-    colors = [cmap(0.15 + 0.7 * i / max(n_times - 1, 1)) for i in range(n_times)]
+    ref_color = "#2980C7"
+    err_color = "#5A0306"
 
     fig, axes = plt.subplots(
         n_times, 2,
@@ -300,6 +301,7 @@ def save_comparison_plot(
         constrained_layout=True,
         sharex=True,
     )
+    fig.patch.set_facecolor("white")
     if n_times == 1:
         axes = axes[np.newaxis, :]
 
@@ -314,29 +316,30 @@ def save_comparison_plot(
         u_pinn = pinn_sol(x_tf, t_tf).numpy()
         u_spec = spec_sol(x_tf, t_tf).numpy()
         err = u_pinn - u_spec
-        color = colors[ti]
 
         ax_u, ax_e = axes[ti, 0], axes[ti, 1]
-        ax_u.plot(x, u_spec, color="black", linewidth=1.6, label="spectral")
-        ax_u.plot(x, u_pinn, color=color, linewidth=1.1, linestyle="--", label="PINN")
+        ax_u.set_facecolor("#FCFCFC")
+        ax_e.set_facecolor("#FCFCFC")
+        ax_u.plot(x, u_spec, color=ref_color, linewidth=1.8, alpha=0.5, label="spectral")
+        ax_u.plot(x, u_pinn, color=err_color, linewidth=1.2, linestyle="--", alpha=0.95, label="PINN")
         ax_u.set_ylabel(f"t = {t:g}", fontsize=9)
-        ax_u.grid(True, alpha=0.2)
+        ax_u.grid(True, color="#B0B0B0", alpha=0.28)
         if ti == 0:
-            ax_u.legend(fontsize=8, loc="upper right")
+            ax_u.legend(fontsize=8, loc="upper right", framealpha=0.92, facecolor="white")
 
-        ax_e.plot(x, err, color=color, linewidth=1.2)
-        ax_e.axhline(0.0, color="black", linewidth=0.5, alpha=0.4)
+        ax_e.plot(x, err, color=err_color, linewidth=1.4)
+        ax_e.axhline(0.0, color="#555555", linewidth=0.6, alpha=0.45)
         ref_inf = max(float(np.max(np.abs(u_spec))), np.finfo(float).tiny)
         rel = float(np.max(np.abs(err))) / ref_inf
         ax_e.set_ylabel(rf"$\epsilon$ ($\|u_{{spec}}\|_\infty$-rel: {rel:.2e})", fontsize=8)
-        ax_e.grid(True, alpha=0.2)
+        ax_e.grid(True, color="#B0B0B0", alpha=0.28)
 
         if ti == n_times - 1:
             ax_u.set_xlabel("$x$", fontsize=9)
             ax_e.set_xlabel("$x$", fontsize=9)
 
     out.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out, dpi=160)
+    fig.savefig(out, dpi=160, facecolor="white", edgecolor="white")
     plt.close(fig)
     return out
 
@@ -348,7 +351,22 @@ def save_comparison_plot(
 def main() -> None:
     args = parse_args()
     validate(args)
-    args.out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Auto-generate output directory if not specified
+    if args.out_dir is None:
+        args.out_dir = get_output_dir(
+            Path("results"),
+            "train_pinn",
+            {
+                "ic": args.ic,
+                "alpha": args.alpha,
+                "nu": args.nu,
+                "epochs": args.epochs,
+                "__tags": ["ic", "alpha", "nu", "epochs"],
+            },
+        )
+    else:
+        args.out_dir.mkdir(parents=True, exist_ok=True)
 
     if args.seed is not None:
         tf.random.set_seed(args.seed)

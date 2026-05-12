@@ -32,11 +32,12 @@ os.environ.setdefault("XDG_CACHE_HOME", str(_CACHE_DIR))
 os.environ.setdefault("MPLCONFIGDIR", str(_MPL_DIR))
 
 import matplotlib
-
 matplotlib.use("Agg")
 import matplotlib.animation as mlanim
 import matplotlib.pyplot as plt
 import numpy as np
+
+from fracburgers.result_naming import get_output_dir
 
 
 def csv_floats(text: str) -> list[float]:
@@ -72,7 +73,7 @@ def parse_args() -> argparse.Namespace:
         metavar="T1,T2,...",
         help="snapshot times to overlay",
     )
-    parser.add_argument("--out-dir", type=Path, default=Path("results"))
+    parser.add_argument("--out-dir", type=Path, default=None, help="output directory (auto-generated from params if not specified)")
     parser.add_argument("--movie", type=Path, default=None, metavar="FILE")
     parser.add_argument("--movie-fps", type=int, default=15)
     parser.add_argument("--movie-t-max", type=float, default=None)
@@ -128,7 +129,19 @@ def _make_grid(n_rows: int, n_cols: int) -> tuple[plt.Figure, np.ndarray]:
 def main() -> None:
     args = parse_args()
     validate(args)
-    args.out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Auto-generate output directory if not specified
+    if args.out_dir is None:
+        args.out_dir = get_output_dir(
+            Path("results"),
+            "plot_diffusion_dispersion",
+            {
+                "nu": args.nu,
+                "__tags": ["nu"],
+            },
+        )
+    else:
+        args.out_dir.mkdir(parents=True, exist_ok=True)
 
     alphas = sorted(args.alpha_list)
     ks = sorted(args.k_list)

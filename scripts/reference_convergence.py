@@ -46,6 +46,7 @@ matplotlib.rcParams.update(
 
 from fracburgers.grid import FourierGrid
 from fracburgers.references import CosineModeReference
+from fracburgers.result_naming import get_output_dir
 from fracburgers.spectral import SpectralSolver
 
 
@@ -102,7 +103,7 @@ def parse_args() -> argparse.Namespace:
         help="evaluation times (lines in convergence plot)",
     )
     p.add_argument("--n-terms", type=int, default=300, help="series truncation for reference (needs ~200 for b≈a)")
-    p.add_argument("--out-dir", type=Path, default=Path("results"))
+    p.add_argument("--out-dir", type=Path, default=None, help="output directory (auto-generated from params if not specified)")
     return p.parse_args()
 
 
@@ -439,7 +440,21 @@ def print_table(
 def main() -> None:
     args = parse_args()
     validate(args)
-    args.out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Auto-generate output directory if not specified
+    if args.out_dir is None:
+        args.out_dir = get_output_dir(
+            Path("results"),
+            "reference_convergence",
+            {
+                "a": args.a,
+                "b": args.b,
+                "nu": args.nu,
+                "__tags": ["a", "b", "nu"],
+            },
+        )
+    else:
+        args.out_dir.mkdir(parents=True, exist_ok=True)
 
     alphas = sorted(args.alpha_list)
     ks = sorted(args.k_list)

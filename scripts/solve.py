@@ -21,6 +21,7 @@ matplotlib.use("Agg")
 
 from fracburgers import initial_conditions
 from fracburgers.grid import FourierGrid
+from fracburgers.result_naming import get_output_dir
 from fracburgers.spectral import SpectralSolver
 from fracburgers.viz import (
     build_theta_solution,
@@ -52,7 +53,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n-times", type=int, default=6)
     parser.add_argument("--N", type=int, default=256)
     parser.add_argument("--L", type=float, default=float(np.pi))
-    parser.add_argument("--out", type=Path, default=Path("outputs/solution.png"))
+    parser.add_argument("--out-dir", type=Path, default=None, help="output directory (auto-generated from params if not specified)")
+    parser.add_argument("--out", type=Path, default=Path("solution.png"), help="output filename within out-dir")
     parser.add_argument("--movie", type=Path, default=None)
     parser.add_argument("--movie-fps", type=int, default=12)
     return parser.parse_args()
@@ -82,6 +84,21 @@ def main() -> None:
     args = parse_args()
     validate_args(args)
 
+    # Auto-generate output directory if not specified
+    if args.out_dir is None:
+        args.out_dir = get_output_dir(
+            Path("results"),
+            "solve",
+            {
+                "ic": args.ic,
+                "nu": args.nu,
+                "N": args.N,
+                "__tags": ["ic", "nu", "N"],
+            },
+        )
+    else:
+        args.out_dir.mkdir(parents=True, exist_ok=True)
+
     grid = FourierGrid.make(N=args.N, L=args.L)
     ic = initial_conditions.get(args.ic)
     times = np.linspace(0.0, args.t_max, args.n_times)
@@ -91,7 +108,7 @@ def main() -> None:
     u_sols = []
     for alpha in alphas:
         title = f"{args.ic}: alpha={alpha:g}, nu={args.nu:g}, N={args.N}"
-        out_path = _suffixed(args.out, alpha) if multi else args.out
+        out_path = args.out_dir / (_suffixed(args.out, alpha) if multi else args.out)
 
         u_sol = SpectralSolver(grid=grid, nu=args.nu, alpha=alpha).solve(ic)
         theta_sol = build_theta_solution(ic, grid=grid, nu=args.nu, alpha=alpha)
@@ -107,13 +124,13 @@ def main() -> None:
                 theta_sol,
                 u_sol,
                 movie_times,
-                movie_out,
+                args.out_dir / movie_out,
                 title=title,
                 fps=args.movie_fps,
             )
             print(f"Saved theta/u movie to {movie_path}")
 
-    grid_path = args.out.with_name(f"{args.out.stem}_alpha_grid{args.out.suffix}")
+    grid_path = args.out_dir / args.out.with_name(f"{args.out.stem}_alpha_grid{args.out.suffix}")
     grid_title = f"{args.ic}: nu={args.nu:g}, N={args.N}"
     save_alpha_snapshot_grid(alphas, u_sols, times, grid_path, title=grid_title)
     print(f"Saved alpha snapshot grid to {grid_path}")
