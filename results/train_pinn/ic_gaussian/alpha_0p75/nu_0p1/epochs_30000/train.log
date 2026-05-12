@@ -1,0 +1,83 @@
+GPU available: PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU')
+Using device: /GPU:0
+Using dtype: float32
+Model parameters: 50,177
+Uniform grid: 128 × 128 = 16384 collocation points, 1024 IC points
+Compiling tf.function (one-time) …
+Training for 30000 epochs …
+  epoch      1/30000  total=8.7105e+01  pde=4.0921e-02  ic=1.7413e+00
+  epoch    500/30000  total=1.3316e-02  pde=1.2678e-02  ic=1.2752e-05
+  epoch   1000/30000  total=2.4613e-02  pde=4.9366e-03  ic=3.9354e-04
+  epoch   1500/30000  total=2.3279e-03  pde=2.2188e-03  ic=2.1813e-06
+  epoch   2000/30000  total=1.5836e-03  pde=1.5233e-03  ic=1.2067e-06
+  epoch   2500/30000  total=1.3122e-03  pde=1.2710e-03  ic=8.2431e-07
+  epoch   3000/30000  total=1.0147e-03  pde=9.8287e-04  ic=6.3596e-07
+  epoch   3500/30000  total=7.7160e-04  pde=7.4675e-04  ic=4.9704e-07
+  epoch   4000/30000  total=5.8681e-04  pde=5.6524e-04  ic=4.3141e-07
+  epoch   4500/30000  total=4.6101e-04  pde=4.4038e-04  ic=4.1263e-07
+  epoch   5000/30000  total=3.8531e-04  pde=3.6624e-04  ic=3.8132e-07
+  epoch   5500/30000  total=4.2655e-04  pde=3.2394e-04  ic=2.0521e-06
+  epoch   6000/30000  total=2.6310e-04  pde=2.5208e-04  ic=2.2028e-07
+  epoch   6500/30000  total=2.8381e-04  pde=2.3288e-04  ic=1.0185e-06
+  epoch   7000/30000  total=7.4486e-04  pde=1.7811e-04  ic=1.1335e-05
+  epoch   7500/30000  total=1.3652e-04  pde=1.3370e-04  ic=5.6528e-08
+  epoch   8000/30000  total=2.7905e-04  pde=1.1199e-04  ic=3.3412e-06
+  epoch   8500/30000  total=3.2845e-04  pde=9.4274e-05  ic=4.6835e-06
+  epoch   9000/30000  total=7.7055e-05  pde=7.5465e-05  ic=3.1790e-08
+  epoch   9500/30000  total=6.7607e-05  pde=6.5440e-05  ic=4.3341e-08
+  epoch  10000/30000  total=9.8127e-04  pde=9.8429e-05  ic=1.7657e-05
+  epoch  10500/30000  total=5.5345e-03  pde=4.2819e-04  ic=1.0213e-04
+  epoch  11000/30000  total=6.0066e-04  pde=6.2005e-05  ic=1.0773e-05
+  epoch  11500/30000  total=4.1273e-05  pde=3.5736e-05  ic=1.1076e-07
+  epoch  12000/30000  total=3.2895e-05  pde=3.0903e-05  ic=3.9841e-08
+  epoch  12500/30000  total=7.2317e-05  pde=2.7964e-05  ic=8.8707e-07
+  epoch  13000/30000  total=1.7757e-04  pde=2.4948e-05  ic=3.0525e-06
+  epoch  13500/30000  total=4.2205e-03  pde=9.0313e-05  ic=8.2603e-05
+  epoch  14000/30000  total=2.4861e-05  pde=2.0428e-05  ic=8.8676e-08
+  epoch  14500/30000  total=7.4460e-05  pde=1.8845e-05  ic=1.1123e-06
+  epoch  15000/30000  total=3.9727e-03  pde=7.0465e-05  ic=7.8044e-05
+  epoch  15500/30000  total=2.4106e-05  pde=1.6095e-05  ic=1.6022e-07
+  epoch  16000/30000  total=1.9758e-03  pde=4.5819e-05  ic=3.8600e-05
+  epoch  16500/30000  total=5.0521e-04  pde=2.1498e-05  ic=9.6743e-06
+  epoch  17000/30000  total=1.7168e-05  pde=1.2172e-05  ic=9.9921e-08
+  epoch  17500/30000  total=1.1476e-04  pde=1.1471e-05  ic=2.0658e-06
+  epoch  18000/30000  total=1.7028e-05  pde=1.1756e-05  ic=1.0544e-07
+  epoch  18500/30000  total=8.9582e-05  pde=1.0078e-05  ic=1.5901e-06
+  epoch  19000/30000  total=5.6246e-05  pde=9.9085e-06  ic=9.2676e-07
+  epoch  19500/30000  total=2.5442e-05  pde=8.4252e-06  ic=3.4034e-07
+  epoch  20000/30000  total=1.1329e-05  pde=7.8192e-06  ic=7.0204e-08
+  epoch  20500/30000  total=8.3782e-06  pde=7.3363e-06  ic=2.0837e-08
+  epoch  21000/30000  total=1.0962e-05  pde=7.3698e-06  ic=7.1853e-08
+  epoch  21500/30000  total=1.6869e-04  pde=7.7486e-06  ic=3.2189e-06
+  epoch  22000/30000  total=6.5130e-06  pde=5.9490e-06  ic=1.1279e-08
+  epoch  22500/30000  total=4.9523e-05  pde=5.6632e-06  ic=8.7719e-07
+  epoch  23000/30000  total=7.2120e-06  pde=5.2770e-06  ic=3.8701e-08
+  epoch  23500/30000  total=5.6449e-06  pde=4.9761e-06  ic=1.3376e-08
+  epoch  24000/30000  total=5.8601e-05  pde=6.8870e-06  ic=1.0343e-06
+  epoch  24500/30000  total=5.1827e-06  pde=4.4444e-06  ic=1.4767e-08
+  epoch  25000/30000  total=4.5984e-06  pde=4.2201e-06  ic=7.5653e-09
+  epoch  25500/30000  total=4.3742e-06  pde=4.0194e-06  ic=7.0969e-09
+  epoch  26000/30000  total=4.1577e-06  pde=3.8388e-06  ic=6.3790e-09
+  epoch  26500/30000  total=3.9798e-06  pde=3.6761e-06  ic=6.0732e-09
+  epoch  27000/30000  total=3.8120e-06  pde=3.5284e-06  ic=5.6723e-09
+  epoch  27500/30000  total=3.6693e-06  pde=3.3998e-06  ic=5.3898e-09
+  epoch  28000/30000  total=3.5413e-06  pde=3.2845e-06  ic=5.1364e-09
+  epoch  28500/30000  total=3.4268e-06  pde=3.1812e-06  ic=4.9125e-09
+  epoch  29000/30000  total=3.3231e-06  pde=3.0876e-06  ic=4.7106e-09
+  epoch  29500/30000  total=3.2304e-06  pde=3.0039e-06  ic=4.5306e-09
+  epoch  30000/30000  total=3.1601e-06  pde=2.9288e-06  ic=4.6264e-09
+Saved model weights to results/train_pinn/ic_gaussian/alpha_0p75/nu_0p1/epochs_30000/model.weights.h5
+Saved loss plot to results/train_pinn/ic_gaussian/alpha_0p75/nu_0p1/epochs_30000/loss.png
+Running spectral solver for comparison …
+[DEBUG] spec_sol type=<class 'fracburgers.solution.Solution'>
+[DEBUG] Creating PINN solution wrapper with to_solution()…
+[DEBUG] pinn_sol type=<class 'fracburgers.solution.Solution'>
+[DEBUG] pinn_sol(x=0, t=0) = [0.71783647] (shape=(1,))
+[DEBUG] save_comparison_plot: pinn_sol type=<class 'fracburgers.solution.Solution'>, n_times=4
+  t=0.5: u_pinn shape=(512,), nan=0, inf=0, min=-0.271844, max=0.65669
+  t=1: u_pinn shape=(512,), nan=0, inf=0, min=-0.261286, max=0.583379
+  t=1.5: u_pinn shape=(512,), nan=0, inf=0, min=-0.250582, max=0.517084
+  t=2: u_pinn shape=(512,), nan=0, inf=0, min=-0.239646, max=0.459054
+Saved comparison plot to results/train_pinn/ic_gaussian/alpha_0p75/nu_0p1/epochs_30000/comparison.png
+Saved heat comparison plot to results/train_pinn/ic_gaussian/alpha_0p75/nu_0p1/epochs_30000/heat_comparison.png
+Saved report to results/train_pinn/ic_gaussian/alpha_0p75/nu_0p1/epochs_30000/report.json
