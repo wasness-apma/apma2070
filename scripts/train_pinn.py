@@ -40,6 +40,18 @@ import numpy as np
 import tensorflow as tf
 
 from fracburgers import initial_conditions
+
+
+class _Tee:
+    """Mirror writes to two file-like objects (e.g. stdout + a log file)."""
+    def __init__(self, *fds):
+        self._fds = fds
+    def write(self, data):
+        for fd in self._fds:
+            fd.write(data)
+    def flush(self):
+        for fd in self._fds:
+            fd.flush()
 from fracburgers.cole_hopf import u_to_theta_0
 from fracburgers.grid import FourierGrid
 from fracburgers.interpolation import trig_interp
@@ -368,6 +380,20 @@ def main() -> None:
     else:
         args.out_dir.mkdir(parents=True, exist_ok=True)
 
+    log_path = args.out_dir / "train.log"
+    _log_f = log_path.open("w", buffering=1)
+    _orig_stdout = sys.stdout
+    sys.stdout = _Tee(_orig_stdout, _log_f)
+
+    try:
+        _main(args)
+    finally:
+        sys.stdout = _orig_stdout
+        _log_f.close()
+    print(f"Log saved to {log_path}")
+
+
+def _main(args) -> None:
     if args.seed is not None:
         tf.random.set_seed(args.seed)
         np.random.seed(args.seed)
