@@ -703,17 +703,36 @@ def save_solution_comparison(
     fig.patch.set_facecolor("white")
     fig.suptitle(title)
 
-    plot_spacetime(sol_ref, times, ax=axes[0, 0])
+    # Sample both solutions once so panels share a consistent value scale.
+    t_tf = tf.constant(times[:, None], dtype=tf.float64)
+    u_ref = _to_numpy(sol_ref.sample(t_tf))
+    u_test = _to_numpy(sol_test.sample(t_tf))
+    both = np.concatenate([u_ref.ravel(), u_test.ravel()])
+    finite = both[np.isfinite(both)]
+    if finite.size:
+        vmin = float(np.min(finite))
+        vmax = float(np.max(finite))
+    else:
+        vmin, vmax = None, None
+
+    plot_spacetime(u_ref, times, x=sol_ref.grid.x, ax=axes[0, 0], vmin=vmin, vmax=vmax)
     axes[0, 0].set_title(ref_label)
-    plot_spacetime(sol_test, times, ax=axes[0, 1])
+    plot_spacetime(u_test, times, x=sol_test.grid.x, ax=axes[0, 1], vmin=vmin, vmax=vmax)
     axes[0, 1].set_title(test_label)
 
-    snapshot_t = float(times[-1])
+    # Show several snapshot times so deviations are visible before the final time.
+    n_snap = min(4, max(1, times.size))
+    snap_idx = np.unique(np.linspace(0, times.size - 1, num=n_snap, dtype=int))
+    snap_times = [float(times[i]) for i in snap_idx]
+
     ax_snap = axes[1, 0]
     ax_snap.set_facecolor("#FCFCFC")
-    plot_snapshot(sol_ref, snapshot_t, ax=ax_snap, color=ref_color, linewidth=1.8, alpha=0.5, label=ref_label)
-    plot_snapshot(sol_test, snapshot_t, ax=ax_snap, color=err_color, linewidth=1.2, linestyle="--", alpha=0.95, label=test_label)
-    ax_snap.set_title(f"Final snapshot t={snapshot_t:g}")
+    snap_cmap = plt.get_cmap("viridis")
+    for j, t in enumerate(snap_times):
+        c = snap_cmap(j / max(len(snap_times) - 1, 1))
+        plot_snapshot(sol_ref, t, ax=ax_snap, color=c, linewidth=1.7, alpha=0.55, label=f"{ref_label} t={t:g}")
+        plot_snapshot(sol_test, t, ax=ax_snap, color=c, linewidth=1.2, linestyle="--", alpha=0.95, label=f"{test_label} t={t:g}")
+    ax_snap.set_title("Snapshots across time (solid=ref, dashed=PINN)")
     ax_snap.legend(framealpha=0.92, facecolor="white")
     ax_snap.grid(True, color="#B0B0B0", alpha=0.28)
 
