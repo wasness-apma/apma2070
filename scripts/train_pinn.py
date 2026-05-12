@@ -26,6 +26,8 @@ import os
 import tempfile
 from pathlib import Path
 
+import sys
+
 _CACHE_DIR = Path(tempfile.gettempdir()) / "fracburgers-cache"
 _MPL_DIR = _CACHE_DIR / "matplotlib"
 _MPL_DIR.mkdir(parents=True, exist_ok=True)

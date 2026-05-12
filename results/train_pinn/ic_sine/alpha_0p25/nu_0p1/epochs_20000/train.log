@@ -1,0 +1,51 @@
+GPU available: PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU')
+Using device: /GPU:0
+Model parameters: 3,441
+Compiling tf.function (one-time) …
+Training for 20000 epochs …
+  epoch      1/20000  total=3.0033e+05  pde=3.7154e-03  ic=3.0033e+03
+  epoch    500/20000  total=1.4901e+05  pde=1.5779e+01  ic=1.4899e+03
+  epoch   1000/20000  total=9.9442e+04  pde=3.3383e+01  ic=9.9408e+02
+  epoch   1500/20000  total=5.3282e+04  pde=2.9035e+01  ic=5.3253e+02
+  epoch   2000/20000  total=3.1669e+04  pde=2.0028e+01  ic=3.1649e+02
+  epoch   2500/20000  total=1.9855e+04  pde=1.5976e+01  ic=1.9839e+02
+  epoch   3000/20000  total=1.2457e+04  pde=1.5948e+01  ic=1.2441e+02
+  epoch   3500/20000  total=8.6280e+03  pde=9.1147e+00  ic=8.6189e+01
+  epoch   4000/20000  total=3.9686e+03  pde=1.1867e+01  ic=3.9567e+01
+  epoch   4500/20000  total=2.0835e+03  pde=8.1793e+00  ic=2.0753e+01
+  epoch   5000/20000  total=1.3724e+03  pde=6.4476e+00  ic=1.3659e+01
+  epoch   5500/20000  total=6.1432e+02  pde=5.2118e+00  ic=6.0911e+00
+  epoch   6000/20000  total=4.5807e+02  pde=3.5760e+00  ic=4.5450e+00
+  epoch   6500/20000  total=2.4938e+02  pde=2.0691e+00  ic=2.4731e+00
+  epoch   7000/20000  total=1.7621e+02  pde=1.9273e+00  ic=1.7429e+00
+  epoch   7500/20000  total=1.2372e+02  pde=1.9854e+00  ic=1.2173e+00
+  epoch   8000/20000  total=7.9747e+01  pde=1.2576e+00  ic=7.8489e-01
+  epoch   8500/20000  total=7.0741e+01  pde=9.9234e-01  ic=6.9749e-01
+  epoch   9000/20000  total=1.0438e+01  pde=1.4302e+00  ic=9.0081e-02
+  epoch   9500/20000  total=2.3157e+00  pde=7.2899e-01  ic=1.5867e-02
+  epoch  10000/20000  total=1.1315e+00  pde=4.5128e-01  ic=6.8026e-03
+  epoch  10500/20000  total=6.9303e-01  pde=2.3459e-01  ic=4.5843e-03
+  epoch  11000/20000  total=4.1405e-01  pde=2.0875e-01  ic=2.0530e-03
+  epoch  11500/20000  total=2.8374e-01  pde=1.7568e-01  ic=1.0806e-03
+  epoch  12000/20000  total=1.8452e-01  pde=1.0712e-01  ic=7.7401e-04
+  epoch  12500/20000  total=2.0227e-01  pde=9.6127e-02  ic=1.0614e-03
+  epoch  13000/20000  total=9.9011e-02  pde=6.4272e-02  ic=3.4740e-04
+  epoch  13500/20000  total=1.1470e-01  pde=7.7736e-02  ic=3.6960e-04
+  epoch  14000/20000  total=8.2151e-02  pde=4.8093e-02  ic=3.4058e-04
+  epoch  14500/20000  total=9.8579e-02  pde=6.9563e-02  ic=2.9016e-04
+  epoch  15000/20000  total=9.4977e-02  pde=7.4124e-02  ic=2.0853e-04
+  epoch  15500/20000  total=7.8389e-02  pde=5.4259e-02  ic=2.4130e-04
+  epoch  16000/20000  total=7.2366e-02  pde=5.5573e-02  ic=1.6793e-04
+  epoch  16500/20000  total=6.1793e-02  pde=4.5793e-02  ic=1.6001e-04
+  epoch  17000/20000  total=4.6356e-02  pde=3.0714e-02  ic=1.5642e-04
+  epoch  17500/20000  total=5.2495e-02  pde=3.4740e-02  ic=1.7755e-04
+  epoch  18000/20000  total=4.3458e-02  pde=2.9222e-02  ic=1.4235e-04
+  epoch  18500/20000  total=5.3907e-02  pde=3.9176e-02  ic=1.4731e-04
+  epoch  19000/20000  total=4.1579e-02  pde=2.7076e-02  ic=1.4504e-04
+  epoch  19500/20000  total=4.0803e-02  pde=2.8986e-02  ic=1.1817e-04
+  epoch  20000/20000  total=4.2245e-02  pde=3.0934e-02  ic=1.1311e-04
+Saved model weights to results/train_pinn/ic_sine/alpha_0p25/nu_0p1/epochs_20000/model.weights.h5
+Saved loss plot to results/train_pinn/ic_sine/alpha_0p25/nu_0p1/epochs_20000/loss.png
+Running spectral solver for comparison …
+Saved comparison plot to results/train_pinn/ic_sine/alpha_0p25/nu_0p1/epochs_20000/comparison.png
+Saved report to results/train_pinn/ic_sine/alpha_0p25/nu_0p1/epochs_20000/report.json
