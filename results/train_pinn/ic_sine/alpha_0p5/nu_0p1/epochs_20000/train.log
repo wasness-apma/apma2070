@@ -1,60 +1,8 @@
 GPU available: PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU')
 Using device: /GPU:0
-Model parameters: 11,221
+Using dtype: float32
+Model parameters: 50,177
+Uniform grid: 128 × 128 = 16384 collocation points, 1024 IC points
 Compiling tf.function (one-time) …
 Training for 20000 epochs …
-  epoch      1/20000  total=3.0986e+05  pde=1.9237e-03  ic=3.0986e+03
-  epoch    500/20000  total=1.6666e+05  pde=1.1260e+01  ic=1.6665e+03
-  epoch   1000/20000  total=5.8329e+04  pde=4.6505e+01  ic=5.8282e+02
-  epoch   1500/20000  total=3.6863e+04  pde=2.2355e+01  ic=3.6841e+02
-  epoch   2000/20000  total=1.5022e+04  pde=9.9119e+00  ic=1.5012e+02
-  epoch   2500/20000  total=8.6992e+03  pde=1.0185e+01  ic=8.6890e+01
-  epoch   3000/20000  total=2.3895e+03  pde=8.5624e+00  ic=2.3809e+01
-  epoch   3500/20000  total=1.6647e+03  pde=4.7647e+00  ic=1.6599e+01
-  epoch   4000/20000  total=6.3545e+02  pde=2.5690e+00  ic=6.3288e+00
-  epoch   4500/20000  total=2.5841e+02  pde=1.7539e+00  ic=2.5665e+00
-  epoch   5000/20000  total=9.7253e+01  pde=1.4815e+00  ic=9.5771e-01
-  epoch   5500/20000  total=5.9338e+01  pde=1.6783e+00  ic=5.7660e-01
-  epoch   6000/20000  total=1.4367e+01  pde=1.7595e+00  ic=1.2607e-01
-  epoch   6500/20000  total=7.0562e+00  pde=6.9324e-01  ic=6.3630e-02
-  epoch   7000/20000  total=3.1084e+00  pde=5.3928e-01  ic=2.5691e-02
-  epoch   7500/20000  total=1.2039e+00  pde=3.3326e-01  ic=8.7066e-03
-  epoch   8000/20000  total=8.1361e-01  pde=2.8171e-01  ic=5.3190e-03
-  epoch   8500/20000  total=6.4962e+00  pde=3.9205e-01  ic=6.1042e-02
-  epoch   9000/20000  total=4.0441e-01  pde=2.2099e-01  ic=1.8342e-03
-  epoch   9500/20000  total=6.5388e+00  pde=1.5605e-01  ic=6.3828e-02
-  epoch  10000/20000  total=2.0679e-01  pde=7.9852e-02  ic=1.2694e-03
-  epoch  10500/20000  total=1.5015e-01  pde=6.2813e-02  ic=8.7340e-04
-  epoch  11000/20000  total=1.7372e-01  pde=7.3055e-02  ic=1.0067e-03
-  epoch  11500/20000  total=1.6544e-01  pde=6.9709e-02  ic=9.5727e-04
-  epoch  12000/20000  total=1.2557e-01  pde=4.9546e-02  ic=7.6020e-04
-  epoch  12500/20000  total=1.3154e-01  pde=5.2184e-02  ic=7.9357e-04
-  epoch  13000/20000  total=1.0752e-01  pde=4.0427e-02  ic=6.7095e-04
-  epoch  13500/20000  total=2.2642e-01  pde=4.2791e-02  ic=1.8363e-03
-  epoch  14000/20000  total=8.3367e-02  pde=3.3526e-02  ic=4.9841e-04
-  epoch  14500/20000  total=9.5556e-02  pde=3.2380e-02  ic=6.3176e-04
-  epoch  15000/20000  total=8.5880e-02  pde=2.8863e-02  ic=5.7017e-04
-  epoch  15500/20000  total=8.1814e-02  pde=2.9841e-02  ic=5.1973e-04
-  epoch  16000/20000  total=9.5090e-02  pde=4.1710e-02  ic=5.3380e-04
-  epoch  16500/20000  total=7.1192e-02  pde=2.2937e-02  ic=4.8256e-04
-  epoch  17000/20000  total=7.4722e-02  pde=3.2291e-02  ic=4.2431e-04
-  epoch  17500/20000  total=6.8967e-02  pde=2.4492e-02  ic=4.4474e-04
-  epoch  18000/20000  total=6.4029e-02  pde=2.4349e-02  ic=3.9680e-04
-  epoch  18500/20000  total=5.9227e-02  pde=2.0750e-02  ic=3.8477e-04
-  epoch  19000/20000  total=6.5959e-02  pde=2.2289e-02  ic=4.3670e-04
-  epoch  19500/20000  total=6.5326e-02  pde=2.2826e-02  ic=4.2500e-04
-  epoch  20000/20000  total=5.7087e-02  pde=2.1431e-02  ic=3.5656e-04
-Saved model weights to results/train_pinn/ic_sine/alpha_0p5/nu_0p1/epochs_20000/model.weights.h5
-Saved loss plot to results/train_pinn/ic_sine/alpha_0p5/nu_0p1/epochs_20000/loss.png
-Running spectral solver for comparison …
-[DEBUG] spec_sol type=<class 'fracburgers.solution.Solution'>
-[DEBUG] Creating PINN solution wrapper with to_solution()…
-[DEBUG] pinn_sol type=<class 'fracburgers.solution.Solution'>
-[DEBUG] pinn_sol(x=0, t=0) = [0.01255651] (shape=(1,))
-[DEBUG] save_comparison_plot: pinn_sol type=<class 'fracburgers.solution.Solution'>, n_times=4
-  t=0.5: u_pinn shape=(512,), nan=0, inf=0, min=-4.15751, max=1.09625
-  t=1: u_pinn shape=(512,), nan=0, inf=0, min=-4.59372, max=1.13099
-  t=1.5: u_pinn shape=(512,), nan=0, inf=0, min=-5.35184, max=1.31266
-  t=2: u_pinn shape=(512,), nan=0, inf=0, min=-5.0264, max=1.21832
-Saved comparison plot to results/train_pinn/ic_sine/alpha_0p5/nu_0p1/epochs_20000/comparison.png
-Saved report to results/train_pinn/ic_sine/alpha_0p5/nu_0p1/epochs_20000/report.json
+  epoch      1/20000  total=2.7114e+06  pde=4.2000e-03  ic=2.7114e+03
