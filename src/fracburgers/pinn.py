@@ -274,13 +274,24 @@ def train(model: HeatPINN, ic: InitialCondition, grid: FourierGrid,
 
 
 def to_solution(model: HeatPINN, grid: FourierGrid, nu: float,
-                alpha: float) -> Solution:
+                alpha: float, u0_mean: float = 0.0) -> Solution:
     """Wrap a trained ``model`` as a ``Solution``.
 
     The wrapper samples ``θ`` on the grid for any requested ``t``,
     runs the spectral Cole–Hopf back-transform, and returns ``u``
     interpolated to arbitrary query points.
+
+    Parameters
+    ----------
+    u0_mean : float
+        Spatial mean of ``u_0``.  The Cole–Hopf forward transform
+        strips this (gauge fix for I^α), so ``-2ν D^α log θ`` returns
+        only the zero-mean component of u.  Pass ``mean(u_0)`` here to
+        recover the true u.  Defaults to 0 (correct for any IC with
+        zero spatial mean, e.g. sin(x) on [-π, π]).
     """
+    u0_mean_c = tf.constant(float(u0_mean), dtype=tf.float64)
+
     def on_grid(t: tf.Tensor) -> tf.Tensor:
         t = tf.cast(tf.convert_to_tensor(t), dtype=tf.float64)
 
@@ -305,9 +316,10 @@ def to_solution(model: HeatPINN, grid: FourierGrid, nu: float,
             model.log_theta(tf.cast(inputs_flat, mdtype))[:, 0], tf.float64
         )
         log_theta_grid = tf.reshape(log_theta_flat, [n_times, grid.N])   # (T, N)
-        # u = -2ν D^α log θ — no log() call, no underflow → no NaN.
+        # u = -2ν D^α log θ + mean(u_0). The mean term restores the k=0
+        # mode that the Cole–Hopf forward stripped (see u_to_log_theta_0).
         dlog_theta = operators.fractional_derivative(log_theta_grid, alpha, grid)
-        u_grid = -2.0 * nu * dlog_theta                                  # (T, N)
+        u_grid = -2.0 * nu * dlog_theta + u0_mean_c                      # (T, N)
         return u_grid[0] if is_scalar_t else u_grid
 
     return Solution(grid, on_grid)

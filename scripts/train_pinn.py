@@ -608,9 +608,11 @@ def _main(args) -> None:
     print("Running spectral solver for comparison …")
     spec_sol = SpectralSolver(grid=grid, nu=args.nu, alpha=args.alpha).solve(ic)
     print(f"[DEBUG] spec_sol type={type(spec_sol)}")
-    
-    print(f"[DEBUG] Creating PINN solution wrapper with to_solution()…")
-    pinn_sol = to_solution(model, grid, args.nu, args.alpha)
+
+    # Cole–Hopf forward strips mean(u_0); restore it on the PINN side.
+    u0_mean = float(tf.reduce_mean(ic.u_0(grid.x_tf)).numpy())
+    print(f"[DEBUG] Creating PINN solution wrapper with to_solution() (u0_mean={u0_mean:g})…")
+    pinn_sol = to_solution(model, grid, args.nu, args.alpha, u0_mean=u0_mean)
     print(f"[DEBUG] pinn_sol type={type(pinn_sol)}")
     
     # Quick test: evaluate PINN at a single point

@@ -177,6 +177,10 @@ def main() -> None:
     grid_ref = FourierGrid.make(N=args.N_ref, L=args.L)
     times = np.linspace(0.0, args.t_max, num=args.n_times, dtype=np.float64)
 
+    # Cole–Hopf forward strips the spatial mean of u_0; restore it in
+    # the PINN-side reconstruction so it matches the spectral reference.
+    u0_mean = float(tf.reduce_mean(ic.u_0(grid.x_tf)).numpy())
+
     sol_pinn = to_solution(
         load_pinn_model(
             args.pinn_checkpoint,
@@ -187,6 +191,7 @@ def main() -> None:
         grid=grid,
         nu=args.nu,
         alpha=args.alpha,
+        u0_mean=u0_mean,
     )
     sol_ref = SpectralSolver(grid=grid_ref, nu=args.nu, alpha=args.alpha).solve(ic)
 
