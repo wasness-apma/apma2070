@@ -30,6 +30,7 @@ from fracburgers.cole_hopf import theta_to_u, u_to_theta_0
 from fracburgers.grid import FourierGrid
 from fracburgers.initial_conditions import InitialCondition, ThetaFunc
 from fracburgers.solution import Solution
+import fracburgers.operators as operators
 
 
 class HeatPINN(tf.keras.Model):
@@ -60,13 +61,18 @@ class HeatPINN(tf.keras.Model):
             tf.keras.layers.Dense(width, activation=self.activation, dtype=dtype)
             for width in self.hidden_layers[1:]
         ]
-        # Output layer with softplus to ensure θ > 0 (required for Cole–Hopf log(θ))
-        self._output_layer = tf.keras.layers.Dense(1, activation="softplus", dtype=dtype)
+        # Output layer is linear; θ = exp(output).  This guarantees θ > 0
+        # AND lets log(θ) be read off as the pre-activation algebraically,
+        # so the Cole–Hopf inverse never calls log() and never sees the
+        # float32 softplus-underflow → log(0) NaN.
+        self._output_layer = tf.keras.layers.Dense(1, activation=None, dtype=dtype)
 
-    def call(self, inputs: tf.Tensor) -> tf.Tensor:
-        """Forward pass: ``inputs`` shape ``(B, 2)`` with ``[:, 0]=x, [:, 1]=t``.
+    def log_theta(self, inputs: tf.Tensor) -> tf.Tensor:
+        """log(θ) read directly from the linear pre-activation.
 
-        Returns shape ``(B, 1)``.
+        Use this — not ``log(model(inputs))`` — anywhere the inverse
+        Cole–Hopf transform needs ``log θ``: it is exact, has full
+        gradient flow, and cannot produce −∞ from underflow.
         """
         x, t = inputs[:, 0:1], inputs[:, 1:2]  # each (B, 1)
         scale = tf.cast(math.pi / self._L, dtype=inputs.dtype)
@@ -76,6 +82,13 @@ class HeatPINN(tf.keras.Model):
         for layer in self._hidden:
             z = layer(z)
         return self._output_layer(z)
+
+    def call(self, inputs: tf.Tensor) -> tf.Tensor:
+        """Forward pass: ``inputs`` shape ``(B, 2)`` with ``[:, 0]=x, [:, 1]=t``.
+
+        Returns ``θ = exp(log_theta)`` of shape ``(B, 1)``.
+        """
+        return tf.exp(self.log_theta(inputs))
 
     def get_config(self) -> dict:
         config = super().get_config()
@@ -285,16 +298,16 @@ def to_solution(model: HeatPINN, grid: FourierGrid, nu: float,
 
         inputs = tf.stack([x_batch, t_full], axis=-1)                    # (T, N, 2)
         inputs_flat = tf.reshape(inputs, [-1, 2])                        # (T*N, 2)
-        # Explicit cast: feed model in its own dtype, then widen back to float64
-        # for the spectral pipeline. Without this, float64 inputs silently
-        # downcast to float32 inside the Dense layers and softplus can overflow.
+        # Read log(θ) directly from the linear pre-activation (exact),
+        # then widen to float64 for the spectral fractional derivative.
         mdtype = model.dtype if model.dtype else "float32"
-        theta_flat = tf.cast(model(tf.cast(inputs_flat, mdtype))[:, 0], tf.float64)
-        theta_grid = tf.reshape(theta_flat, [n_times, grid.N])           # (T, N)
-        # Floor at 1e-30 before log(θ): float32 softplus underflows to
-        # exactly 0 when pre-activation < −87, making log(0) = −∞ → NaN.
-        theta_grid = tf.maximum(theta_grid, tf.constant(1e-30, dtype=tf.float64))
-        u_grid = theta_to_u(theta_grid, alpha, nu, grid)                # (T, N)
+        log_theta_flat = tf.cast(
+            model.log_theta(tf.cast(inputs_flat, mdtype))[:, 0], tf.float64
+        )
+        log_theta_grid = tf.reshape(log_theta_flat, [n_times, grid.N])   # (T, N)
+        # u = -2ν D^α log θ — no log() call, no underflow → no NaN.
+        dlog_theta = operators.fractional_derivative(log_theta_grid, alpha, grid)
+        u_grid = -2.0 * nu * dlog_theta                                  # (T, N)
         return u_grid[0] if is_scalar_t else u_grid
 
     return Solution(grid, on_grid)

@@ -345,6 +345,77 @@ def save_loss_plot(history: dict[str, list[float]], out: Path) -> Path:
     return out
 
 
+def save_heat_comparison_plot(
+    model: "HeatPINN",
+    theta0_fn,
+    grid: FourierGrid,
+    nu: float,
+    snap_times: np.ndarray,
+    out: Path,
+    title: str = "",
+    fdtype=tf.float32,
+) -> Path:
+    """Rows = snapshots, cols = (θ overlay, pointwise θ error).
+
+    Compares the PINN's raw θ output against the heat-equation spectral
+    reference.  Separates 'θ is wrong' from 'Cole–Hopf inversion is wrong'.
+    """
+    n_times = len(snap_times)
+    ref_color = "#2980C7"
+    err_color = "#5A0306"
+    np_fdtype = np.float32 if fdtype == tf.float32 else np.float64
+
+    x = grid.x
+    x_flat = tf.constant(x.reshape(-1, 1), dtype=fdtype)
+
+    fig, axes = plt.subplots(
+        n_times, 2,
+        figsize=(11.0, 2.6 * n_times),
+        constrained_layout=True,
+        sharex=True,
+    )
+    fig.patch.set_facecolor("white")
+    if n_times == 1:
+        axes = axes[np.newaxis, :]
+
+    fig.suptitle((title or "PINN θ vs heat-equation θ"), fontsize=10)
+    axes[0, 0].set_title(r"$\theta(x,t)$", fontsize=10)
+    axes[0, 1].set_title(r"PINN $-$ heat  (pointwise)", fontsize=10)
+
+    for ti, t in enumerate(snap_times):
+        t_flat = tf.constant(np.full((len(x), 1), t, dtype=np_fdtype), dtype=fdtype)
+        theta_pinn = model(tf.concat([x_flat, t_flat], axis=-1))[:, 0].numpy()
+        theta_heat = heat_theta_on_grid(theta0_fn, grid, nu, float(t), fdtype)
+        err = theta_pinn.astype(np.float64) - theta_heat
+
+        ax_t, ax_e = axes[ti, 0], axes[ti, 1]
+        ax_t.set_facecolor("#FCFCFC")
+        ax_e.set_facecolor("#FCFCFC")
+
+        ax_t.plot(x, theta_heat, color=ref_color, linewidth=1.8, alpha=0.5, label="heat (spectral)")
+        ax_t.plot(x, theta_pinn, color=err_color, linewidth=1.2, linestyle="--", alpha=0.95, label="PINN")
+        ax_t.set_ylabel(f"t = {t:g}", fontsize=9)
+        ax_t.grid(True, color="#B0B0B0", alpha=0.28)
+        if ti == 0:
+            ax_t.legend(fontsize=8, loc="upper right", framealpha=0.92, facecolor="white")
+
+        ax_e.plot(x, err, color=err_color, linewidth=1.4)
+        ax_e.axhline(0.0, color="#555555", linewidth=0.6, alpha=0.45)
+        ref_inf = max(float(np.max(np.abs(theta_heat))), np.finfo(float).tiny)
+        rel = float(np.max(np.abs(err))) / ref_inf
+        ax_e.set_ylabel(rf"$\epsilon$ (rel: {rel:.2e})", fontsize=8)
+        ax_e.grid(True, color="#B0B0B0", alpha=0.28)
+
+        if ti == n_times - 1:
+            ax_t.set_xlabel("$x$", fontsize=9)
+            ax_e.set_xlabel("$x$", fontsize=9)
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=160, facecolor="white", edgecolor="white")
+    plt.close(fig)
+    return out
+
+
 def save_comparison_plot(
     pinn_sol,
     spec_sol,
@@ -561,6 +632,19 @@ def _main(args) -> None:
         title=label,
     )
     print(f"Saved comparison plot to {comp_path}")
+
+    # ── θ comparison plot ─────────────────────────────────────────────────
+    heat_path = save_heat_comparison_plot(
+        model=model,
+        theta0_fn=theta0_fn,
+        grid=grid,
+        nu=args.nu,
+        snap_times=snap_times,
+        out=args.out_dir / "heat_comparison.png",
+        title=label,
+        fdtype=fdtype,
+    )
+    print(f"Saved heat comparison plot to {heat_path}")
 
     # ── JSON report ───────────────────────────────────────────────────────
     final_total = history["total"][-1]
