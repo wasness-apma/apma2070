@@ -264,7 +264,12 @@ def make_train_step(
             t_zero = tf.zeros((n_ic, 1), dtype=fdtype)
             theta_ic_pred = model(tf.concat([x_ic, t_zero], axis=-1))[:, 0]
             theta_ic_true = theta0_fn(x_ic)
-            ic_loss = tf.reduce_mean(tf.square(theta_ic_pred - theta_ic_true))
+            # Relative MSE: ((θ_pred − θ_true) / θ_true)².  Weights regions
+            # of small θ equally with large-θ regions, instead of letting the
+            # large-θ part of the IC dominate the loss.
+            ic_loss = tf.reduce_mean(
+                tf.square((theta_ic_pred - theta_ic_true) / theta_ic_true)
+            )
 
             total = pde_w * pde_loss + ic_w * ic_loss
 
