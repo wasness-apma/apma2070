@@ -283,10 +283,14 @@ def to_solution(model: HeatPINN, grid: FourierGrid, nu: float,
         x_batch = tf.broadcast_to(grid.x_tf[None, :], [n_times, grid.N])
         t_full = tf.broadcast_to(t_batch, [n_times, grid.N])
 
-        inputs = tf.stack([x_batch, t_full], axis=-1)          # (T, N, 2)
-        inputs_flat = tf.reshape(inputs, [-1, 2])              # (T*N, 2)
-        theta_flat = model(inputs_flat)[:, 0]                  # (T*N,)
-        theta_grid = tf.reshape(theta_flat, [n_times, grid.N]) # (T, N)
+        inputs = tf.stack([x_batch, t_full], axis=-1)                    # (T, N, 2)
+        inputs_flat = tf.reshape(inputs, [-1, 2])                        # (T*N, 2)
+        # Explicit cast: feed model in its own dtype, then widen back to float64
+        # for the spectral pipeline. Without this, float64 inputs silently
+        # downcast to float32 inside the Dense layers and softplus can overflow.
+        mdtype = model.dtype if model.dtype else "float32"
+        theta_flat = tf.cast(model(tf.cast(inputs_flat, mdtype))[:, 0], tf.float64)
+        theta_grid = tf.reshape(theta_flat, [n_times, grid.N])           # (T, N)
 
         u_grid = theta_to_u(theta_grid, alpha, nu, grid)       # (T, N)
         return u_grid[0] if is_scalar_t else u_grid

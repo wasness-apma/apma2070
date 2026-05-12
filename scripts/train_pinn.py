@@ -531,6 +531,7 @@ def _main(args) -> None:
             "L": args.L,
             "hidden_layers": args.hidden_layers,
             "activation": args.activation,
+            "dtype": args.dtype,
             "epochs": args.epochs,
             "lr": args.lr,
             "lr_decay": args.lr_decay,

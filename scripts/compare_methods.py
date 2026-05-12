@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import tempfile
 from pathlib import Path
@@ -82,21 +83,28 @@ def validate_args(args: argparse.Namespace) -> None:
             raise SystemExit(message)
 
 
-def _read_arch_from_report(path: Path) -> tuple[tuple[int, ...] | None, str | None]:
+def _read_arch_from_report(path: Path) -> tuple[tuple[int, ...] | None, str | None, float | None, str | None]:
     report_path = path.with_name("report.json")
     if not report_path.exists():
-        return None, None
+        return None, None, None, None
     try:
         report = json.loads(report_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
-        return None, None
+        return None, None, None, None
 
     config = report.get("config", {})
     hidden_layers = config.get("hidden_layers")
     activation = config.get("activation")
+    L = config.get("L")
+    dtype = config.get("dtype")
     if isinstance(hidden_layers, list) and all(isinstance(w, int) for w in hidden_layers):
-        return tuple(hidden_layers), activation if isinstance(activation, str) else None
-    return None, None
+        return (
+            tuple(hidden_layers),
+            activation if isinstance(activation, str) else None,
+            float(L) if L is not None else None,
+            dtype if isinstance(dtype, str) else None,
+        )
+    return None, None, None, None
 
 
 def load_pinn_model(
@@ -104,6 +112,8 @@ def load_pinn_model(
     *,
     hidden_layers: tuple[int, ...] | None = None,
     activation: str | None = None,
+    L: float | None = None,
+    dtype: str | None = None,
 ) -> HeatPINN:
     if not path.exists():
         raise FileNotFoundError(
@@ -122,10 +132,12 @@ def load_pinn_model(
             raise TypeError(f"Loaded {type(model).__name__}, expected HeatPINN.")
         return model
 
-    # Weights-only path (.weights.h5): reconstruct architecture first.
-    report_layers, report_activation = _read_arch_from_report(path)
+    # Weights-only path (.weights.h5): reconstruct architecture from report.json.
+    report_layers, report_activation, report_L, report_dtype = _read_arch_from_report(path)
     hidden_layers = hidden_layers or report_layers
     activation = activation or report_activation or "tanh"
+    L = L if L is not None else (report_L if report_L is not None else math.pi)
+    dtype = dtype or report_dtype or "float32"
     if hidden_layers is None:
         raise ValueError(
             "Weights checkpoint detected but model architecture is unknown. "
@@ -133,8 +145,9 @@ def load_pinn_model(
             "or pass --hidden-layers and optionally --activation."
         )
 
-    model = HeatPINN(hidden_layers=hidden_layers, activation=activation)
-    _ = model(tf.zeros((1, 2), dtype=tf.float64))
+    fdtype = tf.float32 if dtype == "float32" else tf.float64
+    model = HeatPINN(hidden_layers=hidden_layers, activation=activation, L=L, dtype=dtype)
+    _ = model(tf.zeros((1, 2), dtype=fdtype))
     model.load_weights(str(path))
     return model
 
@@ -169,6 +182,7 @@ def main() -> None:
             args.pinn_checkpoint,
             hidden_layers=args.hidden_layers,
             activation=args.activation,
+            L=args.L,
         ),
         grid=grid,
         nu=args.nu,
