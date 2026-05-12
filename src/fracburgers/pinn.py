@@ -291,8 +291,10 @@ def to_solution(model: HeatPINN, grid: FourierGrid, nu: float,
         mdtype = model.dtype if model.dtype else "float32"
         theta_flat = tf.cast(model(tf.cast(inputs_flat, mdtype))[:, 0], tf.float64)
         theta_grid = tf.reshape(theta_flat, [n_times, grid.N])           # (T, N)
-
-        u_grid = theta_to_u(theta_grid, alpha, nu, grid)       # (T, N)
+        # Floor at 1e-30 before log(θ): float32 softplus underflows to
+        # exactly 0 when pre-activation < −87, making log(0) = −∞ → NaN.
+        theta_grid = tf.maximum(theta_grid, tf.constant(1e-30, dtype=tf.float64))
+        u_grid = theta_to_u(theta_grid, alpha, nu, grid)                # (T, N)
         return u_grid[0] if is_scalar_t else u_grid
 
     return Solution(grid, on_grid)
