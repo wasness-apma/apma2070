@@ -26,8 +26,9 @@ from fracburgers import initial_conditions
 from fracburgers.grid import FourierGrid
 from fracburgers.pinn import HeatPINN, to_solution
 from fracburgers.result_naming import get_output_dir
+from fracburgers.solution import Solution
 from fracburgers.spectral import SpectralSolver
-from fracburgers.viz import animate_comparison, save_solution_comparison
+from fracburgers.viz import animate_comparison, build_theta_solution, save_solution_comparison
 
 
 def _csv_ints(text: str) -> tuple[int, ...]:
@@ -152,6 +153,103 @@ def load_pinn_model(
     return model
 
 
+def _log_theta_pinn_solution(model: HeatPINN, grid: FourierGrid) -> Solution:
+    """Wrap the PINN's log θ pre-activation as a Solution on ``grid``."""
+    mdtype = model.dtype if model.dtype else "float32"
+
+    def on_grid(t: tf.Tensor) -> tf.Tensor:
+        t = tf.cast(tf.convert_to_tensor(t), dtype=tf.float64)
+        is_scalar_t = t.shape.rank == 0
+        if is_scalar_t:
+            t_batch = tf.reshape(t, [1, 1])
+        elif t.shape.rank == 1:
+            t_batch = t[:, None]
+        else:
+            t_batch = t
+        n_times = tf.shape(t_batch)[0]
+        x_batch = tf.broadcast_to(grid.x_tf[None, :], [n_times, grid.N])
+        t_full = tf.broadcast_to(t_batch, [n_times, grid.N])
+        inputs_flat = tf.reshape(tf.stack([x_batch, t_full], axis=-1), [-1, 2])
+        log_theta_flat = tf.cast(
+            model.log_theta(tf.cast(inputs_flat, mdtype))[:, 0], tf.float64
+        )
+        log_theta_grid = tf.reshape(log_theta_flat, [n_times, grid.N])
+        return log_theta_grid[0] if is_scalar_t else log_theta_grid
+
+    return Solution(grid, on_grid)
+
+
+def save_log_theta_residual_spectrum(
+    model: HeatPINN,
+    ic,
+    grid: FourierGrid,
+    nu: float,
+    alpha: float,
+    times: np.ndarray,
+    out_path: Path,
+    *,
+    title: str | None = None,
+) -> Path:
+    """Plot the spectrum of the log θ residual (PINN - spectral) and its D^α weighting.
+
+    D^α acts on log θ in the Cole–Hopf inverse, so a tiny high-k error in
+    log θ_pinn shows up as a |k|^α-amplified error in u. The right panel
+    multiplies the raw residual spectrum by |k|^α — i.e. the predicted
+    spectral contribution to the u-error.
+    """
+    import matplotlib.pyplot as plt
+
+    times = np.asarray(times, dtype=np.float64).reshape(-1)
+    log_theta_pinn_sol = _log_theta_pinn_solution(model, grid)
+    theta_ref_sol = build_theta_solution(ic, grid, nu, alpha)
+
+    t_tf = tf.constant(times[:, None], dtype=tf.float64)
+    log_theta_pinn = log_theta_pinn_sol.sample(t_tf).numpy()       # (T, N)
+    log_theta_ref = np.log(theta_ref_sol.sample(t_tf).numpy())     # (T, N)
+    residual = log_theta_pinn - log_theta_ref                      # (T, N)
+
+    res_hat = np.fft.fft(residual, axis=-1) * grid.dx              # (T, N)
+    k = grid.k
+    pos = k > 0
+    order = np.argsort(k[pos])
+    k_sorted = k[pos][order]
+
+    n_snap = min(5, times.size)
+    snap_idx = np.unique(np.linspace(0, times.size - 1, num=n_snap, dtype=int))
+
+    fig, axes = plt.subplots(1, 2, figsize=(12.5, 5.0), constrained_layout=True)
+    if title:
+        fig.suptitle(title)
+    cmap = plt.get_cmap("viridis")
+
+    for j, i in enumerate(snap_idx):
+        c = cmap(j / max(len(snap_idx) - 1, 1))
+        mags = np.abs(res_hat[i, pos])[order]
+        axes[0].loglog(k_sorted, np.maximum(mags, np.finfo(float).tiny),
+                       color=c, label=f"t={times[i]:g}")
+        axes[1].loglog(k_sorted,
+                       np.maximum(mags * k_sorted ** alpha, np.finfo(float).tiny),
+                       color=c, label=f"t={times[i]:g}")
+
+    axes[0].set_xlabel("|k|")
+    axes[0].set_ylabel(r"$|\widehat{\Delta\log\theta}(k, t)|$")
+    axes[0].set_title(r"Residual spectrum: $\log\theta_{\mathrm{PINN}} - \log\theta_{\mathrm{spec}}$")
+    axes[0].grid(True, which="both", alpha=0.3)
+    axes[0].legend()
+
+    axes[1].set_xlabel("|k|")
+    axes[1].set_ylabel(r"$|k|^{\alpha}\,|\widehat{\Delta\log\theta}(k, t)|$")
+    axes[1].set_title(rf"$D^{{{alpha:g}}}$-weighted residual (predicts $u$-error spectrum)")
+    axes[1].grid(True, which="both", alpha=0.3)
+    axes[1].legend()
+
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=160, facecolor="white")
+    plt.close(fig)
+    return out_path
+
+
 def main() -> None:
     args = parse_args()
     validate_args(args)
@@ -181,13 +279,14 @@ def main() -> None:
     # the PINN-side reconstruction so it matches the spectral reference.
     u0_mean = float(tf.reduce_mean(ic.u_0(grid.x_tf)).numpy())
 
+    pinn_model = load_pinn_model(
+        args.pinn_checkpoint,
+        hidden_layers=args.hidden_layers,
+        activation=args.activation,
+        L=args.L,
+    )
     sol_pinn = to_solution(
-        load_pinn_model(
-            args.pinn_checkpoint,
-            hidden_layers=args.hidden_layers,
-            activation=args.activation,
-            L=args.L,
-        ),
+        pinn_model,
         grid=grid,
         nu=args.nu,
         alpha=args.alpha,
@@ -215,6 +314,18 @@ def main() -> None:
 
     print(f"Saved comparison figure to {fig_path}")
     print(f"Saved metrics to {metrics_path}")
+
+    spectrum_path = save_log_theta_residual_spectrum(
+        pinn_model,
+        ic,
+        grid,
+        args.nu,
+        args.alpha,
+        times,
+        args.out_dir / "pinn_vs_spectral_log_theta_residual_spectrum.png",
+        title=f"log θ residual spectrum ({title})",
+    )
+    print(f"Saved log θ residual spectrum to {spectrum_path}")
     if metrics["max_l2_error"] is None or metrics["max_linf_error"] is None:
         print("Error summary: no finite error values found")
     else:
