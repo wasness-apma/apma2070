@@ -1,9 +1,8 @@
 """Fractional Cole–Hopf transform, in TensorFlow.
 
 The substitution ``u = -2ν D^α ln θ`` reduces the fractional Burgers
-equation (with the operator structure used in this project) to the
-classical heat equation ``θ_t = ν θ_{xx}``. Initial data are related
-by
+equation to the classical heat equation ``θ_t = ν θ_{xx}``. Initial data 
+are related by
 
     θ_0(x) = exp(-I^α u_0(x) / (2ν))
     u_0(x) = -2ν D^α ln θ_0(x)
